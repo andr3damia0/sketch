@@ -22,6 +22,7 @@ let padSize;
 
 let reverb, delay;
 let startButton;
+
 let audioStarted = false;
 
 let friction = 0.95;
