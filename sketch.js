@@ -1,4 +1,17 @@
-// Número de pads (2 linhas x 6 colunas)
+// ================================================
+//  SKETCH DE PADS COM VÍDEO DE FUNDO (WEB + MOBILE)
+//  Estrutura esperada do repositório:
+//
+//  /index.html
+//  /sketch.js
+//  /assets/audio/Sound1.wav ... Sound12.wav
+//  /assets/images/image1.png ... image12.png
+//  /assets/video/background.mp4
+//
+//  Toda vez que mudar a pasta ou nome de arquivo,
+//  ajuste os caminhos em preload() e no vídeo.
+// ================================================
+
 let numPads = 12;
 let pads = [];
 let sounds = [];
@@ -7,52 +20,59 @@ let cols = 6;
 let rows = 2;
 let padSize;
 
-// Efeitos
 let reverb, delay;
-
-// Botão de start (necessário p/ liberar áudio no navegador)
 let startButton;
 let audioStarted = false;
 
-// Física simples dos pads
 let friction = 0.95;
 let bounce = 0.8;
 
-// Vídeo de fundo
+// vídeo de fundo
 let bgVideo;
 
 function preload() {
-  // 🔊 CARREGA ÁUDIO E IMAGENS
-  // caminhos relativos à raiz do repo (ajuste se precisar)
+  // --------------------------------
+  // CARREGAMENTO DE ÁUDIO E IMAGENS
+  // --------------------------------
+  // Agora apontando para assets/audio e assets/images.
   for (let i = 0; i < numPads; i++) {
-    // ex: assets/audio/Sound1.wav
-    sounds[i] = loadSound(`assets/audio/Sound${i + 1}.wav`);
-    // ex: assets/images/image1.png
-    images[i] = loadImage(`assets/images/image${i + 1}.png`);
+    // ex.: /assets/audio/Sound1.wav
+    sounds[i] = loadSound(
+      `assets/audio/Sound${i + 1}.wav`,
+      null,
+      (err) => console.warn("Erro ao carregar som", i + 1, err)
+    );
+
+    // ex.: /assets/images/image1.png
+    images[i] = loadImage(
+      `assets/images/image${i + 1}.png`,
+      null,
+      () => console.warn("Não encontrei image" + (i + 1) + ".png")
+    );
   }
 }
 
 function setup() {
-  // Canvas ocupando a tela inteira (bom para mobile)
   createCanvas(windowWidth, windowHeight);
   rectMode(CORNER);
   imageMode(CENTER);
   noStroke();
   textAlign(CENTER, CENTER);
 
-  // 🎥 CRIA VÍDEO DE FUNDO (SEM SOM)
-  // createVideo NUNCA vai tocar sozinho – apenas depois do clique
+  // --------------------------------
+  // CRIA O VÍDEO DE FUNDO
+  // --------------------------------
+  // Caminho compatível com a estrutura /assets/video/
   bgVideo = createVideo("assets/video/background.mp4");
-  bgVideo.hide();          // esconde o player nativo HTML
-  bgVideo.volume(0);       // sem som
+  bgVideo.hide();        // esconde o player HTML padrão
+  bgVideo.volume(0);     // sem som
   if (bgVideo.elt) {
-    bgVideo.elt.muted = true; // garante mudo em iOS/Safari
+    bgVideo.elt.muted = true; // alguns browsers móveis exigem mute
   }
 
-  // Tamanho base dos pads (proporcional à tela)
   padSize = min(width / 8, height / 6);
 
-  // Cria os pads em grade inicial
+  // Cria os pads
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       let i = r * cols + c;
@@ -70,20 +90,20 @@ function setup() {
         vy: 0,
         clickTime: 0,
         lastDragTime: 0,
-        glow: 0 // intensidade do brilho
+        glow: 0
       });
     }
   }
 
-  // Botão que libera o áudio (obrigatório para mobile)
+  // Botão para liberar áudio (obrigatório no mobile)
   startButton = createButton("🎵 Start Audio");
   startButton.position(width / 2 - 60, height / 2 - 25);
   startButton.size(120, 50);
   startButton.style("font-size", "18px");
-  startButton.mousePressed(startAudio);   // desktop / mobile
-  startButton.touchStarted(startAudio);   // alguns Android/iOS disparam aqui
+  startButton.mousePressed(startAudio);
+  startButton.touchStarted(startAudio);
 
-  // Cria os efeitos (conectamos sons quando tocarmos)
+  // Efeitos globais
   reverb = new p5.Reverb();
   delay = new p5.Delay();
 }
@@ -91,16 +111,17 @@ function setup() {
 function draw() {
   background(0);
 
-  // 🎥 DESENHA O VÍDEO DE FUNDO (se já criado)
+  // --------------------------------
+  // DESENHA VÍDEO DE FUNDO
+  // --------------------------------
   if (bgVideo) {
     image(bgVideo, width / 2, height / 2, width, height);
   }
 
-  // Overlay escuro pra destacar os pads
+  // Overlay escuro pra dar contraste
   fill(0, 150);
   rect(0, 0, width, height);
 
-  // Antes de liberar o áudio, só mostramos a mensagem
   if (!audioStarted) {
     fill(255);
     textSize(22);
@@ -108,7 +129,9 @@ function draw() {
     return;
   }
 
-  // 🎚️ CONTROLE GLOBAL DE EFEITOS PELO MOVIMENTO MÉDIO DOS PADS
+  // --------------------------------
+  // CONTROLE GLOBAL DE EFEITOS
+  // --------------------------------
   let avgX = 0;
   for (let pad of pads) avgX += pad.x;
   avgX /= pads.length;
@@ -120,10 +143,11 @@ function draw() {
   delay.delayTime(map(delayVal, 0, 1, 0, 0.5));
   delay.feedback(map(delayVal, 0, 1, 0, 0.6));
 
-  // 🧭 ATUALIZA FÍSICA: MOVIMENTO + BRILHO
+  // --------------------------------
+  // FÍSICA DOS PADS
+  // --------------------------------
   for (let pad of pads) {
     if (pad.dragging) {
-      // enquanto arrasta, o pad segue o dedo/mouse
       let targetX = mouseX - pad.offsetX;
       let targetY = mouseY - pad.offsetY;
       targetX = constrain(targetX, 0, width - pad.w);
@@ -133,28 +157,27 @@ function draw() {
       pad.x = targetX;
       pad.y = targetY;
       pad.lastDragTime = millis();
-      pad.glow = 255; // brilho máximo enquanto arrasta
+      pad.glow = 255;
     } else {
-      // movimento inercial + atrito
       pad.x += pad.vx;
       pad.y += pad.vy;
       pad.vx *= friction;
       pad.vy *= friction;
-      pad.glow = max(0, pad.glow - 10); // brilho vai sumindo
+      pad.glow = max(0, pad.glow - 10);
     }
 
-    // mantém os pads dentro da tela
     pad.x = constrain(pad.x, 0, width - pad.w);
     pad.y = constrain(pad.y, 0, height - pad.h);
 
-    // timeout de segurança do drag
     if (pad.dragging && millis() - pad.lastDragTime > 400) {
       pad.dragging = false;
       pad.clicked = false;
     }
   }
 
-  // 💥 COLISÕES ENTRE PADS (transfere movimento e brilho)
+  // --------------------------------
+  // COLISÕES ENTRE PADS
+  // --------------------------------
   for (let i = 0; i < pads.length; i++) {
     for (let j = i + 1; j < pads.length; j++) {
       let a = pads[i];
@@ -174,7 +197,6 @@ function draw() {
         b.x -= cos(angle) * overlap;
         b.y -= sin(angle) * overlap;
 
-        // troca de velocidades com fator de "quique"
         let avx = a.vx;
         let avy = a.vy;
         a.vx = b.vx * bounce;
@@ -188,14 +210,16 @@ function draw() {
     }
   }
 
-  // 🖼️ DESENHA PADS COM BRILHO + IMAGEM
+  // --------------------------------
+  // DESENHA OS PADS
+  // --------------------------------
   for (let i = 0; i < pads.length; i++) {
     let pad = pads[i];
 
     push();
-    // sombra suave dependendo do brilho
     drawingContext.shadowBlur = pad.glow * 0.5;
-    drawingContext.shadowColor = "rgba(255,255,200," + (pad.glow / 255) + ")";
+    drawingContext.shadowColor =
+      "rgba(255,255,200," + pad.glow / 255 + ")";
 
     if (images[i]) {
       image(
@@ -211,7 +235,6 @@ function draw() {
     }
     pop();
 
-    // contorno quando ativo
     if (pad.active) {
       noFill();
       stroke(255, 200);
@@ -231,21 +254,21 @@ function draw() {
 }
 
 function startAudio() {
-  // 🔓 Libera o contexto de áudio (obrigatório em mobile)
+  // 🔓 Libera contexto de áudio (obrigatório em mobile)
   userStartAudio();
 
   audioStarted = true;
   if (startButton) startButton.hide();
 
-  // Só começamos o vídeo DEPOIS da interação (evita bloqueios)
+  // Agora podemos iniciar o vídeo em loop
   if (bgVideo) {
-    bgVideo.loop();      // repete em loop
-    bgVideo.volume(0);   // garante mudo
+    bgVideo.loop();
+    bgVideo.volume(0);
     if (bgVideo.elt) bgVideo.elt.muted = true;
   }
 }
 
-// ⬇️ A partir daqui: input unificado mouse/touch
+// ----------------- INPUT (mouse + touch) -----------------
 
 function mousePressed() {
   if (!audioStarted) return;
@@ -293,7 +316,7 @@ function mouseReleased() {
         if (sounds[i] && !sounds[i].isPlaying()) {
           sounds[i].play();
 
-          // Conecta o som nos efeitos (reverb → delay → saída)
+          // Liga o som no reverb → delay → saída
           sounds[i].disconnect();
           sounds[i].connect(reverb);
           reverb.connect(delay);
@@ -307,10 +330,9 @@ function mouseReleased() {
   }
 }
 
-// Em mobile, p5 chama estas funções → mapeamos para o mesmo fluxo
 function touchStarted() {
   mousePressed();
-  return false; // evita scroll em alguns casos
+  return false;
 }
 function touchMoved() {
   mouseDragged();
@@ -321,7 +343,6 @@ function touchEnded() {
   return false;
 }
 
-// Testa se (x,y) está dentro de um pad
 function insidePad(pad, x, y) {
   return (
     x > pad.x &&
@@ -331,7 +352,6 @@ function insidePad(pad, x, y) {
   );
 }
 
-// Ajusta o canvas quando muda a orientação/tamanho da tela
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }
